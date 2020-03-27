@@ -1,0 +1,7 @@
+baseURL = "https://example.com"
+languageCode = "en-us"
+title = "Slash"
+theme = "slash"
+
+[permalinks]
+  blog = "/:slug"

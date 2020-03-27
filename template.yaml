@@ -1,0 +1,220 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Hugo site without trailing slashes
+Parameters:
+  BaseName:
+    Description: Base name for resources in the stack
+    Type: String
+    Default: <BASE_NAME> # The base name for naming resources in the stack
+  HostedZoneName:
+    Description: Hosted zone
+    Type: String
+    Default: <HOSTED_ZONE_NAME> # The hosted zone name in Route53
+  DomainName:
+    Description: Domain name
+    Type: String
+    Default: <DOMAIN_NAME> # The domain name for your site
+Resources:
+  Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: <BUCKET_NAME> # Name of the S3 bucket that will host your files
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref Bucket
+      PolicyDocument:
+        Statement:
+          - Action:
+              - s3:GetObject
+            Effect: Allow
+            Resource: !Join ["", ["arn:aws:s3:::", !Ref Bucket, "/*"]]
+            Principal:
+              CanonicalUser: !GetAtt CloudFrontOriginAccessIdentity.S3CanonicalUserId
+  CloudFrontOriginAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub "CloudFront OAI for ${DomainName}"
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn:
+      - Bucket
+    Properties:
+      DistributionConfig:
+        Comment: <COMMENT> # A name or description of your CloudFront distribution
+        Aliases:
+          - !Ref DomainName
+          - !Sub 'www.${DomainName}'
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - HEAD
+            - OPTIONS
+            - GET
+          ForwardedValues:
+            QueryString: true
+          TargetOriginId:
+            Ref: BaseName
+          ViewerProtocolPolicy: redirect-to-https
+          LambdaFunctionAssociations:
+            - EventType: origin-request
+              LambdaFunctionARN: !Ref OriginRequestLambdaFunctionVersion
+            - EventType: viewer-request
+              LambdaFunctionARN: !Ref ViewerRequestLambdaFunctionVersion
+          Compress: true
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 404
+            ResponsePagePath: /404.html
+          - ErrorCode: 404
+            ResponseCode: 404
+            ResponsePagePath: /404.html
+        DefaultRootObject: index.html
+        Enabled: Yes
+        HttpVersion: http2
+        ViewerCertificate:
+          SslSupportMethod: sni-only
+          AcmCertificateArn: <CERTIFICATE_ARN> # Arn of an ACM certificate in us-east-1 configured for your domain. Skip if you do not need HTTPS.
+        Origins:
+          - Id:
+              Ref: BaseName
+            DomainName: !GetAtt Bucket.DomainName
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+  Domain:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget:
+        DNSName: !GetAtt CloudFrontDistribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2 # Static value for CloudFront distributions
+      HostedZoneName: !Ref HostedZoneName
+      Name: !Ref HostedZoneName
+      Type: A
+  ViewerRequestLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: >
+        Lambda function performing redirects
+      Code:
+        ZipFile: |
+          const path = require('path');
+          exports.handler = async (event) => {
+            const request = event.Records[0].cf.request;
+            const domain = '<YOUR_DOMAIN>';
+
+            // Redirect www to naked
+            if (request.headers.host[0].value.includes('www')) {
+              console.log('www found');
+              return {
+                  status: '301',
+                  statusDescription: 'Moved permanently',
+                  headers: {
+                      location: [{
+                        key: 'Location',
+                        value: `https://${domain}${request.uri}`,
+                    }]
+                  }
+                }
+            }
+            // Redirect trailing slashes  
+            if (request.uri !== '/' && request.uri.slice(-1) === '/') {
+              return {
+                status: '301',
+                statusDescription: 'Moved permanently',
+                headers: {
+                    location: [{
+                      key: 'Location',
+                      value: `https://${domain}${request.uri.slice(0, -1)}`,
+                  }]
+                }
+              }
+            }
+            return request;
+          };
+      Handler: index.handler
+      MemorySize: 128
+      Role: !Sub ${ViewerRequestLambdaFunctionExecutionRole.Arn}
+      Runtime: nodejs10.x
+      Tags:
+        - Key: Domain
+          Value: !Ref DomainName
+
+  ViewerRequestLambdaFunctionVersion:
+    Type: AWS::Lambda::Version
+    Properties:
+      FunctionName: !Ref ViewerRequestLambdaFunction
+      Description: !Sub "URL rewriting for ${DomainName}"
+
+  ViewerRequestLambdaFunctionExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - edgelambda.amazonaws.com
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+  OriginRequestLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: >
+        Lambda function performing request URI rewriting.
+      Code:
+        ZipFile: |
+          const path = require('path');
+          exports.handler = async (event) => {
+            const request = event.Records[0].cf.request;
+            const domain = '<YOUR_DOMAIN>';
+            // Redirect trailing slashes  
+            if (request.uri !== '/' && request.uri.slice(-1) === '/') {
+              return {
+                status: '301',
+                statusDescription: 'Moved permanently',
+                headers: {
+                    location: [{
+                      key: 'Location',
+                      value: `https://${domain}${request.uri.slice(0, -1)}`,
+                  }]
+                }
+              }
+            }
+            // Rewrite clean URLs (adding index.html)
+            if (!path.extname(request.uri)) {
+              request.uri = request.uri.replace(/\/?$/, '\/index.html');
+            }
+            return request;
+          };
+      Handler: index.handler
+      MemorySize: 128
+      Role: !Sub ${OriginRequestLambdaFunctionExecutionRole.Arn}
+      Runtime: nodejs10.x
+      Tags:
+        - Key: Domain
+          Value: !Ref DomainName
+
+  OriginRequestLambdaFunctionVersion:
+    Type: AWS::Lambda::Version
+    Properties:
+      FunctionName: !Ref OriginRequestLambdaFunction
+      Description: !Sub "URL rewriting for ${DomainName}"
+
+  OriginRequestLambdaFunctionExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - edgelambda.amazonaws.com
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole

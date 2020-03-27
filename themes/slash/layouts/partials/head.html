@@ -1,0 +1,8 @@
+  <head>
+    <meta charset="utf-8" />
+    <meta name="description" content="{{ .Params.description }}" />
+    <title>{{ .Title }}</title>
+    <base href="{{ .Site.BaseURL }}" />
+    <!-- Trim trailing slash from canonical link -->
+    <link rel="canonical" href="{{ substr .Permalink 0 -1 }}" />
+  </head>
