@@ -14,6 +14,7 @@ This repository contains an example on how to remove trailing slashes when hosti
 - Redirects URLs with trailing slashes to URLs without trailing slashes
 - Removes the trailing slashes from canonical links, stub pages and sitemap
 - Redirects www to naked URL (`www.example.com` -> `example.com`)
+- Removes trailing slashes from sitemap, canonical links and page stubs
 
 ## Deploy Infrastructure
 
