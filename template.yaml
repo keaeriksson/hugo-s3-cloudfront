@@ -133,7 +133,7 @@ Resources:
       Handler: index.handler
       MemorySize: 128
       Role: !Sub ${ViewerRequestLambdaFunctionExecutionRole.Arn}
-      Runtime: nodejs10.x
+      Runtime: nodejs18.x
       Tags:
         - Key: Domain
           Value: !Ref DomainName
@@ -192,7 +192,7 @@ Resources:
       Handler: index.handler
       MemorySize: 128
       Role: !Sub ${OriginRequestLambdaFunctionExecutionRole.Arn}
-      Runtime: nodejs10.x
+      Runtime: nodejs18.x
       Tags:
         - Key: Domain
           Value: !Ref DomainName
