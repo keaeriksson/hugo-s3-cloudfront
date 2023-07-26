@@ -13,11 +13,19 @@ Parameters:
     Description: Domain name
     Type: String
     Default: <DOMAIN_NAME> # The domain name for your site
+  CertificateArn:
+    Description: Arn of an ACM certificate in us-east-1 configured for your domain. Skip if you do not need HTTPS.
+    Type: String
+    Default: <CERTIFICATE_ARN>
+  BucketName:
+    Description: Name of the S3 bucket that will host your files
+    Type: String
+    Default: <BUCKET_NAME>
 Resources:
   Bucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: <BUCKET_NAME> # Name of the S3 bucket that will host your files
+      BucketName: !Ref BucketName 
   BucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -73,7 +81,7 @@ Resources:
         HttpVersion: http2
         ViewerCertificate:
           SslSupportMethod: sni-only
-          AcmCertificateArn: <CERTIFICATE_ARN> # Arn of an ACM certificate in us-east-1 configured for your domain. Skip if you do not need HTTPS.
+          AcmCertificateArn: !Ref CertificateArn 
         Origins:
           - Id:
               Ref: BaseName
@@ -86,8 +94,8 @@ Resources:
       AliasTarget:
         DNSName: !GetAtt CloudFrontDistribution.DomainName
         HostedZoneId: Z2FDTNDATAQYW2 # Static value for CloudFront distributions
-      HostedZoneName: !Ref HostedZoneName
-      Name: !Ref HostedZoneName
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref DomainName
       Type: A
   ViewerRequestLambdaFunction:
     Type: AWS::Lambda::Function
@@ -133,7 +141,7 @@ Resources:
       Handler: index.handler
       MemorySize: 128
       Role: !Sub ${ViewerRequestLambdaFunctionExecutionRole.Arn}
-      Runtime: nodejs10.x
+      Runtime: nodejs18.x
       Tags:
         - Key: Domain
           Value: !Ref DomainName
@@ -192,7 +200,7 @@ Resources:
       Handler: index.handler
       MemorySize: 128
       Role: !Sub ${OriginRequestLambdaFunctionExecutionRole.Arn}
-      Runtime: nodejs10.x
+      Runtime: nodejs18.x
       Tags:
         - Key: Domain
           Value: !Ref DomainName
