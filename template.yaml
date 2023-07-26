@@ -95,6 +95,7 @@ Resources:
         DNSName: !GetAtt CloudFrontDistribution.DomainName
         HostedZoneId: Z2FDTNDATAQYW2 # Static value for CloudFront distributions
       HostedZoneId: !Ref HostedZoneId
+      Name: !Ref DomainName
       Type: A
   ViewerRequestLambdaFunction:
     Type: AWS::Lambda::Function
