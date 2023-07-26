@@ -18,13 +18,17 @@ This repository contains an example on how to remove trailing slashes when hosti
 
 ## Deploy Infrastructure
 
-To deploy the bucket, CloudFront distribution and Route53 records needed to host your Hugo site run the following command from the repository root:
+> Note: This template assumes that you have your domain hosted on Route53. Feel free to remove the record set from the template and set your DNS-records in your preferred domain provider.
+
+### Steps to Deploy
+
+1. Create ACM certificate, and make sure you select the option to add `www` to the same certificate upon creation.
+2. Fill in all values in the `template.yaml` between the <> brackets, carefully noting there are a few <> in the Javascript code blocks.
+3. Run the following command to deploy the bucket, CloudFront distribution and Route53 records needed to host your Hugo site:
 
 ```
 aws cloudformation deploy --stack-name <STACK_NAME> --template-file template.yaml --capabilities CAPABILITY_IAM
 ```
-
-> Note: This template assumes that you have your domain hosted on Route53. Feel free to remove the record set from the template and set your DNS-records in your preferred domain provider.
 
 ## Deploy Site
 
